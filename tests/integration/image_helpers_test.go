@@ -26,6 +26,11 @@ const (
 	multilayersTag   = "multilayers-20261103-2e526488d"
 	happyPathCatalog = "quay.io/" + testCatalogRepo + ":" + testCatalogTag
 	operandImage     = "quay.io/" + testCatalogRepo + "@sha256:1ce8c0187c8fe6b4be327dc848b8baf062ce1baa5096b4f5d955893d126d5b58"
+
+	releasePayloadRepo          = "quay.io/oc-mirror/release/test-release-index"
+	multiReleasePayloadRepo     = releasePayloadRepo + "-multi"
+	releasePayloadByDigest      = releasePayloadRepo + "@sha256:f81792339c8b5934191d18a53b18bc1d584e01a9f37d59c0aa6905b00200aa1b"
+	multiReleasePayloadByDigest = multiReleasePayloadRepo + "@sha256:2352c020dacb945a96cf665e553644f3a3c39341b636a4d9ef1653944fd9de1f"
 )
 
 var happyPathCachedImages = map[string]string{

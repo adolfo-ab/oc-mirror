@@ -51,12 +51,7 @@ mirror:
       - name: stable-5.0
 ```
 
-oc-mirror first looks for the upgrade path in the update graph of the target channel (`stable-5.0`), which must contain the highest release. Only if that graph has no path, it also searches the graphs of:
-
-- the source channel and the other configured OCP channels between the two versions, such as `candidate-5.0`;
-- unconfigured channels with the source or target channel prefix: earlier 5.x channels with the target prefix (`stable-5.0` for a `stable-5.1` target), 5.x channels with the source prefix (`fast-5.0` from `fast-4.22`), and later 4.x channels with the source prefix.
-
-Channels with other prefixes are only searched when they are configured.
+oc-mirror first looks for the upgrade path in the target channel's graph (`stable-5.0`), which must contain the highest release. If that graph has no path, oc-mirror adds the source graph and searches the two graphs together. It does not look for cross-major links in other channels.
 
 In these examples, the graphs are made up, not published update paths:
 
@@ -64,11 +59,7 @@ In these examples, the graphs are made up, not published update paths:
 |---|---|---|
 | The target graph has a path | `stable-5.0`: 4.22.1 → 4.22.20 → 5.0.1 | 4.22.1, 4.22.20, 5.0.1 |
 | The source graph adds patch updates | `stable-4.22`: 4.22.1 → 4.22.20; `stable-5.0`: 4.22.20 → 5.0.1 | 4.22.1, 4.22.20, 5.0.1 |
-| A configured channel connects the releases | `candidate-5.0` (configured): 4.22.1 → 5.0.0; `stable-5.0`: 5.0.0 → 5.0.1 | 4.22.1, 5.0.0, 5.0.1 |
-| An earlier 5.x channel connects the releases (target `stable-5.1`) | `stable-5.0`: 4.22.1 → 5.0.3; `stable-5.1`: 5.0.3 → 5.1.0, without 4.x releases | 4.22.1, 5.0.3, 5.1.0 |
-| No graph has a path | `stable-5.0`: 5.0.1 only | 4.22.1 and 5.0.1, with a `NoUpgradePath` warning |
-
-Without the configured `candidate-5.0` channel, the third case has no path.
+| Neither graph supplies a path | `stable-4.22`: 4.22.1 only; `stable-5.0`: 5.0.1 only | 4.22.1 and 5.0.1, with a `NoUpgradePath` warning |
 
 When no path is found, oc-mirror logs a `NoUpgradePath` warning that lists the searched channels and the reason, and continues. For this upgrade, it adds only the start and target releases, or only the target release when the start release is in none of the searched graphs. The releases that each channel selects, for example with `minVersion`, are still mirrored.
 
@@ -76,8 +67,7 @@ oc-mirror only follows the unconditional update edges that the channels publish,
 
 | Situation | Result |
 |---|---|
-| The graph of an unconfigured channel cannot be downloaded | Warning that names the channel; the channel is skipped |
-| The target channel does not contain the highest release, the graph of the target, source or a configured channel cannot be downloaded or read, or a downloaded graph cannot be saved | The run fails |
+| The target channel does not contain the highest release, a required graph cannot be downloaded or read, or a downloaded graph cannot be saved | The run fails |
 
 Mirror to disk saves the searched graphs in the working directory, and disk to mirror uses this saved copy without contacting the update service. To use a newly published update path, run mirror to disk or mirror to mirror again.
 
