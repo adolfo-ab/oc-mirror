@@ -575,46 +575,13 @@ func getSemVers(stringVers []string) (vers []semver.Version) {
 	return vers
 }
 
-// getHanlderMulti mocks a multi channel Cincinnati API
-func getHandlerMulti(t *testing.T, requestQuery chan<- string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		select {
-		case requestQuery <- r.URL.RawQuery:
-		default:
-			// t.Fatalf("received multiple requests at upstream URL")
-		}
-
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-
-		mtype := r.Header.Get("Accept")
-		if mtype != "application/json" {
-			w.WriteHeader(http.StatusUnsupportedMediaType)
-			return
-		}
-
-		keys, ok := r.URL.Query()["channel"]
-		if !ok {
-			t.Fail()
-		}
-
-		ch := keys[len(keys)-1]
-
-		switch {
-		case ch == "empty-4.0":
-			_, err := w.Write([]byte(`{
+// multiChannelGraphs are the graphs served by getHandlerMulti by channel name.
+var multiChannelGraphs = map[string]string{
+	"empty-4.0": `{
 				"nodes": [],
 				"edges": []
-			  }`))
-			if err != nil {
-				t.Fatal(err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-		case ch == "stable-4.0":
-			_, err := w.Write([]byte(`{
+			  }`,
+	"stable-4.0": `{
 				"nodes": [
 				  {
 					"version": "4.0.0-4",
@@ -642,14 +609,8 @@ func getHandlerMulti(t *testing.T, requestQuery chan<- string) http.HandlerFunc 
 				  }
 				],
 				"edges": [[0,1],[1,2],[2,4],[2,5],[4,5]]
-			  }`))
-			if err != nil {
-				t.Fatal(err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-		case ch == "stable-4.1":
-			_, err := w.Write([]byte(`{
+			  }`,
+	"stable-4.1": `{
 				"nodes": [
 				  {
 					"version": "4.0.0-4",
@@ -681,14 +642,8 @@ func getHandlerMulti(t *testing.T, requestQuery chan<- string) http.HandlerFunc 
 				  }
 				],
 				"edges": [[0,1],[1,2],[2,4],[2,5],[4,5],[5,6]]
-			  }`))
-			if err != nil {
-				t.Fatal(err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-		case ch == "stable-4.2":
-			_, err := w.Write([]byte(`{
+			  }`,
+	"stable-4.2": `{
 				"nodes": [
 				{
 					"version": "4.1.0-6",
@@ -708,14 +663,8 @@ func getHandlerMulti(t *testing.T, requestQuery chan<- string) http.HandlerFunc 
 				}
 				],
 				"edges": [[0,2],[1,2],[2,3]]
-			}`))
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				t.Fatal(err)
-				return
-			}
-		case ch == "stable-4.3":
-			_, err := w.Write([]byte(`{
+			}`,
+	"stable-4.3": `{
 				"nodes": [
 				{
 					"version": "4.3.0",
@@ -727,14 +676,8 @@ func getHandlerMulti(t *testing.T, requestQuery chan<- string) http.HandlerFunc 
 				}
 				],
 				"edges": [[0,1]]
-			}`))
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				t.Fatal(err)
-				return
-			}
-		case ch == "fast-4.3":
-			_, err := w.Write([]byte(`{
+			}`,
+	"fast-4.3": `{
 				"nodes": [
 				{
 					"version": "4.2.0-5",
@@ -754,14 +697,45 @@ func getHandlerMulti(t *testing.T, requestQuery chan<- string) http.HandlerFunc 
 				}
 				],
 				"edges": [[0,1],[1,2],[2,3]]
-			}`))
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				t.Fatal(err)
-				return
-			}
+			}`,
+}
+
+// getHanlderMulti mocks a multi channel Cincinnati API
+func getHandlerMulti(t *testing.T, requestQuery chan<- string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case requestQuery <- r.URL.RawQuery:
 		default:
+			// t.Fatalf("received multiple requests at upstream URL")
+		}
+
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		mtype := r.Header.Get("Accept")
+		if mtype != "application/json" {
+			w.WriteHeader(http.StatusUnsupportedMediaType)
+			return
+		}
+
+		keys, ok := r.URL.Query()["channel"]
+		if !ok {
 			t.Fail()
+		}
+
+		ch := keys[len(keys)-1]
+
+		graph, ok := multiChannelGraphs[ch]
+		if !ok {
+			t.Fail()
+			return
+		}
+		if _, err := w.Write([]byte(graph)); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			t.Fatal(err)
+			return
 		}
 	}
 }

@@ -18,6 +18,10 @@ import (
 
 const ChannelInfo = "channel %q: %v"
 
+// reasonAPIRequestError is the reason of the errors returned when the update graph of a channel
+// cannot be fetched.
+const reasonAPIRequestError = "APIRequestError"
+
 // Error is returned when are unable to get updates.
 type Error struct {
 	// Reason is the reason suggested for the Cincinnati calculation error.
@@ -43,7 +47,7 @@ func GetUpdates(ctx context.Context, cs CincinnatiSchema, channel string, versio
 	graph, err := getGraphData(ctx, cs, channel, version.String())
 	if err != nil {
 		return cincinnati.Update{}, cincinnati.Update{}, nil, &Error{
-			Reason:  "APIRequestError",
+			Reason:  reasonAPIRequestError,
 			Message: fmt.Sprintf("version %s in channel %s: %v", version.String(), channel, err),
 			cause:   err,
 		}
@@ -279,11 +283,11 @@ func getSemverFromChannels(sourceChannel, targetChannel string) (source, target 
 	}
 	source, err = semver.Parse(fmt.Sprintf("%s.0", sourceChannel[sourceIdx+1:]))
 	if err != nil {
-		return source, target, prefix, err
+		return source, target, prefix, fmt.Errorf("%w", err)
 	}
 	target, err = semver.Parse(fmt.Sprintf("%s.0", targetChannel[targetIdx+1:]))
 	if err != nil {
-		return source, target, prefix, err
+		return source, target, prefix, fmt.Errorf("%w", err)
 	}
 	prefix = sourceChannel[:sourceIdx]
 	return source, target, prefix, nil
@@ -295,7 +299,7 @@ func GetChannelMinOrMax(ctx context.Context, cs CincinnatiSchema, channel string
 	graph, err := getGraphData(ctx, cs, channel, "")
 	if err != nil {
 		return semver.Version{}, &Error{
-			Reason:  "APIRequestError",
+			Reason:  reasonAPIRequestError,
 			Message: fmt.Sprintf(ChannelInfo, channel, err),
 			cause:   err,
 		}
@@ -336,7 +340,7 @@ func GetVersions(ctx context.Context, cs CincinnatiSchema, channel string) ([]se
 	graph, err := getGraphData(ctx, cs, channel, "")
 	if err != nil {
 		return nil, &Error{
-			Reason:  "APIRequestError",
+			Reason:  reasonAPIRequestError,
 			Message: fmt.Sprintf(ChannelInfo, channel, err),
 			cause:   err,
 		}
@@ -358,7 +362,7 @@ func GetUpdatesInRange(ctx context.Context, cs CincinnatiSchema, channel string,
 	graph, err := getGraphData(ctx, cs, channel, "")
 	if err != nil {
 		return nil, &Error{
-			Reason:  "APIRequestError",
+			Reason:  reasonAPIRequestError,
 			Message: fmt.Sprintf(ChannelInfo, channel, err),
 			cause:   err,
 		}
