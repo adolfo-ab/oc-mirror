@@ -284,7 +284,8 @@ func (o *CincinnatiSchema) initCincinnatiClient(ch v2alpha1.ReleaseChannel) erro
 	}
 }
 
-// warnEUSChannel emits a one-time warning when an EUS channel spans two or more minor versions.
+// warnEUSChannel emits a one-time warning when an EUS channel spans two or more minor versions,
+// or releases of different major versions.
 // It returns true if the warning was printed, or the value of alreadyReported if the warning
 // was skipped (either because it was already printed or the channel does not qualify).
 func (o *CincinnatiSchema) warnEUSChannel(ch v2alpha1.ReleaseChannel, alreadyReported bool) bool {
@@ -294,7 +295,8 @@ func (o *CincinnatiSchema) warnEUSChannel(ch v2alpha1.ReleaseChannel, alreadyRep
 	// CLID-135: detect and log as early as possible
 	max := semver.MustParse(ch.MaxVersion)
 	min := semver.MustParse(ch.MinVersion)
-	if strings.Contains(ch.Name, "eus") && (max.Minor-min.Minor) >= 2 {
+	// The warning also applies to ranges that reach a later major version.
+	if strings.Contains(ch.Name, "eus") && (max.Major > min.Major || (max.Major == min.Major && max.Minor > min.Minor && max.Minor-min.Minor >= 2)) {
 		o.Log.Warn("Extended Update Support (EUS) channel detected with minor version range >= 2\n" +
 			"\t\t\t\tPlease refer to the web console https://access.redhat.com/labs/ocpupgradegraph/update_path\n" +
 			"\t\t\t\tTo correctly determine the upgrade path for EUS releases")
@@ -415,7 +417,17 @@ func getCrossChannelDownloads(ctx context.Context, cs CincinnatiSchema, channels
 	if err != nil {
 		return []v2alpha1.CopyImageSchema{}, fmt.Errorf("failed to find maximum release version: %w", err)
 	}
-	current, newest, updates, err := CalculateUpgrades(ctx, cs, firstCh, lastCh, first, last)
+	// The upgrades between OCP channels are calculated with the OCP Cincinnati API, whatever the
+	// client of the last processed channel. cs is a copy: the caller's client is unchanged.
+	if err := cs.NewOCPClient(); err != nil {
+		return []v2alpha1.CopyImageSchema{}, fmt.Errorf("failed to create the OCP Cincinnati client: %w", err)
+	}
+	// The graphs of the other configured OCP channels may connect the first and last channels.
+	names := make([]string, 0, len(ocpChannels))
+	for _, ch := range ocpChannels {
+		names = append(names, ch.Name)
+	}
+	current, newest, updates, err := calculateUpgrades(ctx, cs, firstCh, lastCh, first, last, names)
 	if err != nil {
 		return []v2alpha1.CopyImageSchema{}, fmt.Errorf("failed to get upgrade graph: %w", err)
 	}

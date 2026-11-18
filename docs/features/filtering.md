@@ -38,6 +38,49 @@ Version range behavior:
 
 **Note:** The `maxVersion` field is supported but **not recommended**. Using `maxVersion` can result in mirroring a version that is not the channel head, which may lack metadata required for proper cluster upgrades. Prefer using `minVersion` alone or `full: true` instead.
 
+### Upgrades from 4.x to 5.x
+
+When the configured OCP channels span two major versions, oc-mirror also mirrors the releases needed to upgrade from the lowest configured release to the highest one:
+
+```yaml
+mirror:
+  platform:
+    channels:
+      - name: stable-4.22
+        minVersion: 4.22.1
+      - name: stable-5.0
+```
+
+oc-mirror first looks for the upgrade path in the update graph of the target channel (`stable-5.0`), which must contain the highest release. Only if that graph has no path, it also searches the graphs of:
+
+- the source channel and the other configured OCP channels between the two versions, such as `candidate-5.0`;
+- unconfigured channels with the source or target channel prefix: earlier 5.x channels with the target prefix (`stable-5.0` for a `stable-5.1` target), 5.x channels with the source prefix (`fast-5.0` from `fast-4.22`), and later 4.x channels with the source prefix.
+
+Channels with other prefixes are only searched when they are configured.
+
+In these examples, the graphs are made up, not published update paths:
+
+| Case | Example graphs | Releases added for the upgrade |
+|---|---|---|
+| The target graph has a path | `stable-5.0`: 4.22.1 → 4.22.20 → 5.0.1 | 4.22.1, 4.22.20, 5.0.1 |
+| The source graph adds patch updates | `stable-4.22`: 4.22.1 → 4.22.20; `stable-5.0`: 4.22.20 → 5.0.1 | 4.22.1, 4.22.20, 5.0.1 |
+| A configured channel connects the releases | `candidate-5.0` (configured): 4.22.1 → 5.0.0; `stable-5.0`: 5.0.0 → 5.0.1 | 4.22.1, 5.0.0, 5.0.1 |
+| An earlier 5.x channel connects the releases (target `stable-5.1`) | `stable-5.0`: 4.22.1 → 5.0.3; `stable-5.1`: 5.0.3 → 5.1.0, without 4.x releases | 4.22.1, 5.0.3, 5.1.0 |
+| No graph has a path | `stable-5.0`: 5.0.1 only | 4.22.1 and 5.0.1, with a `NoUpgradePath` warning |
+
+Without the configured `candidate-5.0` channel, the third case has no path.
+
+When no path is found, oc-mirror logs a `NoUpgradePath` warning that lists the searched channels and the reason, and continues. For this upgrade, it adds only the start and target releases, or only the target release when the start release is in none of the searched graphs. The releases that each channel selects, for example with `minVersion`, are still mirrored.
+
+oc-mirror only follows the unconditional update edges that the channels publish, never conditional update edges. When the start and target releases are generally available, the path skips pre-releases such as 5.0.0-rc.1, so a path that needs a pre-release between them ends with the warning, like a path that needs a conditional edge. Mirroring only the start and target releases does not confirm that a cluster can upgrade between them.
+
+| Situation | Result |
+|---|---|
+| The graph of an unconfigured channel cannot be downloaded | Warning that names the channel; the channel is skipped |
+| The target channel does not contain the highest release, the graph of the target, source or a configured channel cannot be downloaded or read, or a downloaded graph cannot be saved | The run fails |
+
+Mirror to disk saves the searched graphs in the working directory, and disk to mirror uses this saved copy without contacting the update service. To use a newly published update path, run mirror to disk or mirror to mirror again.
+
 ### Architecture selection
 
 By default, only `amd64` images are mirrored. Specify additional architectures at the platform level:
